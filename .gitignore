@@ -1,5 +1,31 @@
-node_modules/
-dist/
-.env
-.DS_Store
+# Secrets and local auth
+auth.json
+*.env
+.env*
+config.json
+!config.example.json
+
+# Runtime/session/browser state
+sessions/
+chrome-profile/
+proof-of-work/events.jsonl
+proof-of-work/logs/
+**/logs/
 *.log
+*.log.rc
+memory/hermes/sessions.sqlite
+memory/imported-openclaw/
+memory/dreams/
+
+# Build/cache/dependencies
+node_modules/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+dist/
+.DS_Store
+
+# Bundled local binaries
+bin/pi
+bin/rg
+bin/fd

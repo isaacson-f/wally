@@ -1,56 +1,26 @@
-# Wally
+# Wally Pi Setup
 
-Wally is a Pi package/extension that gives agents and users a compact reference for the Pi `ExtensionAPI` object — the `pi` object passed to extension factories — plus the most useful context helpers.
+This repository mirrors the non-secret parts of the Pi agent setup from this machine.
 
-## Install
+Included:
 
-```bash
-pi install git:github.com/isaacson-f/wally
-```
+- `skills/` custom Pi skills
+- `extensions/` Pi extensions
+- `prompts/`, `docs/`, and architecture notes
+- PR review/proof-of-work tooling
+- GitHub webhook and Signal bridge code with sanitized example configs
+- Curated Hermes memory files that are intended to be non-secret (excluding imported transcripts/indexes)
 
-Or from a checkout:
+Excluded intentionally:
 
-```bash
-pi -e ./src/index.ts
-```
+- Pi auth material (`auth.json`)
+- Browser profiles/cookies/history (`chrome-profile/`)
+- Session transcripts (`sessions/`)
+- Runtime logs and proof event logs
+- SQLite recall indexes
+- `node_modules/`, caches, and local binary shims
+- Secret-bearing concrete config files; use `config.example.json` templates instead
 
-## What it adds
+## Restore notes
 
-- `/wally [filter]` slash command for humans.
-- `wally_pi_reference` tool for agents.
-- A small footer status hint when loaded in interactive mode.
-
-## Examples
-
-```text
-/wally registerTool
-/wally provider
-```
-
-Agents can call `wally_pi_reference` with:
-
-```json
-{ "format": "markdown", "filter": "setActiveTools" }
-```
-
-or:
-
-```json
-{ "format": "json" }
-```
-
-## Covered Pi object areas
-
-- Events and inter-extension event bus
-- Tool registration and active tool control
-- Commands, shortcuts, flags, and message injection
-- Session state helpers
-- Model/provider registration and thinking-level control
-- Message rendering and UI/context helpers
-
-## Development
-
-```bash
-npm install
-npm run typecheck
-```
+Copy this checkout into `~/.pi/agent` or selectively copy subdirectories. Then recreate local-only files such as auth/config secrets from 1Password or the host environment.

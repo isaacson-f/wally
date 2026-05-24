@@ -1,0 +1,23 @@
+{
+  "signal": {
+    "host": "127.0.0.1",
+    "port": 7583,
+    "allowed_senders": ["+15555555555"],
+    "allow_groups": true
+  },
+  "pi": {
+    "command": ["/path/to/pi", "--mode", "rpc"],
+    "working_directory": "/path/to/workdir",
+    "system_prefix": "You are pi, accessed through Signal. Keep replies concise unless asked."
+  },
+  "bridge": {
+    "dm_trigger_prefix": "",
+    "group_trigger_prefix": "wally",
+    "max_signal_message_chars": 3500,
+    "send_typing": true,
+    "tmux_subagents": true,
+    "subagent_backend": "process",
+    "worker_count": 8,
+    "runtime_dir": "/tmp/pi-signal-subagents"
+  }
+}
