@@ -1,8 +1,0 @@
-from pi_scraper_service.extensions.custom import solve_task as solve_custom_task
-from pi_scraper_service.extensions.datadome import solve_task as solve_datadome_task
-from pi_scraper_service.extensions.hcaptcha import solve_task as solve_hcaptcha_task
-from pi_scraper_service.extensions.image_to_text import solve_task as solve_image_to_text_task
-from pi_scraper_service.extensions.recaptcha_v2 import solve_task as solve_recaptcha_v2_task
-from pi_scraper_service.extensions.recaptcha_v2_enterprise import solve_task as solve_recaptcha_v2_enterprise_task
-from pi_scraper_service.extensions.recaptcha_v3 import solve_task as solve_recaptcha_v3_task
-from pi_scraper_service.extensions.turnstile import solve_task as solve_turnstile_task

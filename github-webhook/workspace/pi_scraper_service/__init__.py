@@ -1,2 +1,0 @@
-from pi_scraper_service.engine import CaptchaEngine
-from pi_scraper_service.models import CaptchaProvider, CaptchaTaskRequest, CaptchaTaskResult

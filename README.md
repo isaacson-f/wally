@@ -8,7 +8,7 @@ Included:
 - `extensions/` Pi extensions
 - `prompts/`, `docs/`, and architecture notes
 - PR review/proof-of-work tooling
-- GitHub webhook and Signal bridge code with sanitized example configs
+- GitHub webhook and Signal bridge scaffolding with sanitized example configs
 - Curated Hermes memory files that are intended to be non-secret (excluding imported transcripts/indexes)
 
 Excluded intentionally:
@@ -20,6 +20,7 @@ Excluded intentionally:
 - SQLite recall indexes
 - `node_modules/`, caches, and local binary shims
 - Secret-bearing concrete config files; use `config.example.json` templates instead
+- Nested webhook workspace checkouts; recreate workspaces locally as needed
 
 ## Restore notes
 

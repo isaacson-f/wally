@@ -29,3 +29,6 @@ dist/
 bin/pi
 bin/rg
 bin/fd
+
+# Nested workspaces
+github-webhook/workspace/
