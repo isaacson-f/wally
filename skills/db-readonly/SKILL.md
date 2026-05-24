@@ -31,11 +31,15 @@ Use this skill to query databases without changing data or schema.
 
 ## 1Password AWS_access helper
 
-Use `with_aws_access.py` to pull `AWS_access` from 1Password and run a database client with secret fields in environment variables only:
+Use `with_aws_access.py` to pull `AWS_access` from 1Password and run a database/AWS client with secret fields in environment variables only. It maps common 1Password field labels to `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` for child commands.
 
 ```bash
 # Show loaded field names only; values are redacted
 /root/.pi/agent/skills/db-readonly/scripts/with_aws_access.py --print-nonsecret
+
+# Verify AWS credentials without printing secrets
+/root/.pi/agent/skills/db-readonly/scripts/with_aws_access.py --validate-aws --region us-east-1 -- \
+  aws sts get-caller-identity --output json
 
 # PostgreSQL: maps hostname/username/credential to PGHOST/PGUSER/PGPASSWORD
 /root/.pi/agent/skills/db-readonly/scripts/with_aws_access.py --pg -- \

@@ -55,6 +55,40 @@ def build_env(fields: dict[str, str], args: argparse.Namespace) -> dict[str, str
         if label in fields:
             env[env_name] = fields[label]
 
+    # AWS_access conventions in 1Password vary. Common labels are:
+    # - username: AWS access key id
+    # - credential/password/secret access key: AWS secret access key
+    # - session token/security token: AWS session token
+    # Do not print any of these values.
+    access_key = first_present(fields, ["aws_access_key_id", "access key id", "access_key_id", "username"])
+    secret_key = first_present(fields, ["aws_secret_access_key", "secret access key", "secret_access_key", "password"])
+    session_token = first_present(fields, ["aws_session_token", "session token", "security token", "session_token"])
+
+    credential = fields.get("credential")
+    if credential and not secret_key and not session_token:
+        # AWS secret access keys are typically 40 chars. STS session tokens are much longer.
+        if len(credential) <= 128:
+            secret_key = credential
+        else:
+            session_token = credential
+
+    if access_key:
+        env["AWS_ACCESS_KEY_ID"] = access_key
+    if secret_key:
+        env["AWS_SECRET_ACCESS_KEY"] = secret_key
+    if session_token:
+        env["AWS_SESSION_TOKEN"] = session_token
+    if args.region:
+        env["AWS_DEFAULT_REGION"] = args.region
+
+    if args.validate_aws and not (env.get("AWS_ACCESS_KEY_ID") and env.get("AWS_SECRET_ACCESS_KEY")):
+        missing = []
+        if not env.get("AWS_ACCESS_KEY_ID"):
+            missing.append("AWS_ACCESS_KEY_ID")
+        if not env.get("AWS_SECRET_ACCESS_KEY"):
+            missing.append("AWS_SECRET_ACCESS_KEY")
+        raise SystemExit(f"AWS_access is missing required AWS credential component(s): {', '.join(missing)}")
+
     if args.pg:
         if "hostname" in fields:
             env["PGHOST"] = fields["hostname"]
@@ -67,6 +101,14 @@ def build_env(fields: dict[str, str], args: argparse.Namespace) -> dict[str, str
         env["MYSQL_PWD"] = fields["credential"]
 
     return env
+
+
+def first_present(fields: dict[str, str], labels: list[str]) -> str | None:
+    for label in labels:
+        value = fields.get(label)
+        if value:
+            return value
+    return None
 
 
 def materialize_key(env: dict[str, str]) -> tuple[dict[str, str], str | None]:
@@ -90,6 +132,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--pg", action="store_true", help="Also map hostname/username/credential to PGHOST/PGUSER/PGPASSWORD")
     parser.add_argument("--mysql", action="store_true", help="Also map credential to MYSQL_PWD")
     parser.add_argument("--ssh-key-file", action="store_true", help="Write credential to a temporary 0600 key file and set AWS_ACCESS_KEY_FILE")
+    parser.add_argument("--region", default=os.environ.get("AWS_DEFAULT_REGION"), help="Set AWS_DEFAULT_REGION for the child command")
+    parser.add_argument("--validate-aws", action="store_true", help="Fail before running command if AWS access key id or secret access key is missing")
     parser.add_argument("--print-nonsecret", action="store_true", help="Print loaded non-secret field names only; values are redacted")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to exec after --")
     args = parser.parse_args(argv)
@@ -108,7 +152,10 @@ def main(argv: list[str]) -> int:
 
     if args.print_nonsecret:
         present_fields = sorted(k for k in fields if k != "notesplain")
-        present_env = sorted(k for k in env if k.startswith("AWS_ACCESS_") and k != "AWS_ACCESS_CREDENTIAL")
+        present_env = sorted(set(
+            [k for k in env if k.startswith("AWS_ACCESS_") and k != "AWS_ACCESS_CREDENTIAL"]
+            + [k for k in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_DEFAULT_REGION"] if env.get(k)]
+        ))
         print(json.dumps({"vault": args.vault, "item": args.item, "field_labels_present": present_fields, "env_present": present_env}, indent=2))
 
     if not command:
