@@ -1,0 +1,38 @@
+{
+  "name": "wally",
+  "version": "0.1.0",
+  "description": "A Pi extension package that exposes a comprehensive reference for the pi ExtensionAPI object.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/isaacson-f/wally.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/isaacson-f/wally/issues"
+  },
+  "homepage": "https://github.com/isaacson-f/wally#readme",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "latest",
+    "@earendil-works/pi-coding-agent": "latest",
+    "typebox": "latest"
+  }
+}
