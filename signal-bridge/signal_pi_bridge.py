@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -122,6 +123,58 @@ class PiRpc:
             raise EOFError("pi RPC process exited")
 
 
+def _attachment_local_path(attachment: dict[str, Any]) -> str | None:
+    for key in ("path", "localPath", "storedPath", "storedFilename", "file"):
+        value = attachment.get(key)
+        if isinstance(value, str) and value:
+            path = Path(value).expanduser()
+            if path.exists():
+                return str(path)
+
+    attachment_id = attachment.get("id") or attachment.get("attachmentId")
+    if isinstance(attachment_id, str) and attachment_id:
+        path = Path.home() / ".local/share/signal-cli/attachments" / attachment_id
+        if path.exists():
+            return str(path)
+    return None
+
+
+def normalize_attachments(data: dict[str, Any]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    raw_attachments = data.get("attachments") or []
+    if not isinstance(raw_attachments, list):
+        return normalized
+
+    for raw in raw_attachments:
+        if not isinstance(raw, dict):
+            continue
+        normalized.append(
+            {
+                "id": raw.get("id") or raw.get("attachmentId"),
+                "contentType": raw.get("contentType") or raw.get("content_type"),
+                "filename": raw.get("filename"),
+                "size": raw.get("size"),
+                "width": raw.get("width"),
+                "height": raw.get("height"),
+                "path": _attachment_local_path(raw),
+            }
+        )
+    return normalized
+
+
+def _normalize_group_id(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, list) and all(isinstance(part, int) for part in value):
+        return base64.b64encode(bytes(value)).decode("ascii")
+    if isinstance(value, dict):
+        for key in ("groupId", "id", "masterKey"):
+            normalized = _normalize_group_id(value.get(key))
+            if normalized:
+                return normalized
+    return None
+
+
 def extract_message(notification: dict[str, Any]) -> dict[str, Any] | None:
     if notification.get("method") != "receive":
         return None
@@ -131,13 +184,22 @@ def extract_message(notification: dict[str, Any]) -> dict[str, Any] | None:
     if not data:
         return None
     text = data.get("message") or ""
-    if not text.strip():
+    attachments = normalize_attachments(data)
+    if not text.strip() and not attachments:
         return None
     source = envelope.get("sourceNumber") or envelope.get("source") or envelope.get("sourceUuid")
     group = data.get("groupInfo") or data.get("groupV2") or {}
-    group_id = group.get("groupId") or group.get("id")
+    group_id = _normalize_group_id(group)
+    group_name = group.get("name") or group.get("title") if isinstance(group, dict) else None
     timestamp = envelope.get("timestamp") or data.get("timestamp")
-    return {"text": text, "source": source, "group_id": group_id, "timestamp": timestamp}
+    return {
+        "text": text,
+        "attachments": attachments,
+        "source": source,
+        "group_id": group_id,
+        "group_name": group_name,
+        "timestamp": timestamp,
+    }
 
 
 def signal_destination_params(dest: dict[str, Any]) -> dict[str, Any]:
@@ -173,6 +235,38 @@ def start_typing_loop(rpc: JsonLineSocket, dest: dict[str, Any], interval: float
     return done
 
 
+def format_attachments_for_prompt(attachments: list[dict[str, Any]]) -> str:
+    if not attachments:
+        return ""
+    lines = ["Signal attachments received:"]
+    for index, attachment in enumerate(attachments, start=1):
+        parts = [f"{index}."]
+        content_type = attachment.get("contentType")
+        if content_type:
+            parts.append(f"type={content_type}")
+        filename = attachment.get("filename")
+        if filename:
+            parts.append(f"filename={filename}")
+        width = attachment.get("width")
+        height = attachment.get("height")
+        if width and height:
+            parts.append(f"dimensions={width}x{height}")
+        size = attachment.get("size")
+        if size:
+            parts.append(f"size={size}")
+        path = attachment.get("path")
+        if path:
+            parts.append(f"local_path={path}")
+        else:
+            attachment_id = attachment.get("id")
+            if attachment_id:
+                parts.append(f"id={attachment_id}")
+            parts.append("local_path=unavailable")
+        lines.append(" ".join(str(part) for part in parts))
+    lines.append("If an attachment is an image and a local_path is present, inspect it with the read tool before answering image-specific questions.")
+    return "\n".join(lines)
+
+
 def chunks(text: str, size: int):
     start = 0
     while start < len(text):
@@ -191,6 +285,8 @@ def main() -> int:
     pi_cfg = cfg["pi"]
     allowed = set(signal_cfg.get("allowed_senders") or [])
     allow_groups = bool(signal_cfg.get("allow_groups", False))
+    allowed_group_ids = set(signal_cfg.get("allowed_group_ids") or [])
+    allowed_group_senders = set(signal_cfg.get("allowed_group_senders") or [])
     dm_trigger_prefix = bridge_cfg.get("dm_trigger_prefix", bridge_cfg.get("trigger_prefix", ""))
     group_trigger_prefix = bridge_cfg.get("group_trigger_prefix", bridge_cfg.get("trigger_prefix", ""))
     max_chars = int(bridge_cfg.get("max_signal_message_chars", 3500))
@@ -237,7 +333,11 @@ def main() -> int:
                 route_prefix = item.get("matched_prefix", "")
                 if route_prefix:
                     user_text = user_text[len(route_prefix) :].lstrip()
-                prompt = f"{prefix}\n\nSignal message from {item.get('source') or 'unknown'}:\n{user_text}" if prefix else user_text
+                attachment_prompt = format_attachments_for_prompt(item.get("attachments") or [])
+                prompt_body = user_text
+                if attachment_prompt:
+                    prompt_body = f"{prompt_body}\n\n{attachment_prompt}".strip()
+                prompt = f"{prefix}\n\nSignal message from {item.get('source') or 'unknown'}:\n{prompt_body}" if prefix else prompt_body
                 typing_done = start_typing_loop(signal_rpc, item) if bridge_cfg.get("send_typing", True) else None
                 try:
                     reply = agent_for(item).prompt(prompt)
@@ -267,11 +367,21 @@ def main() -> int:
         msg = extract_message(event)
         if not msg:
             continue
-        if msg.get("group_id") and not allow_groups:
+        is_group = bool(msg.get("group_id"))
+        if is_group:
+            if not allow_groups:
+                continue
+            if allowed_group_ids and msg.get("group_id") not in allowed_group_ids:
+                continue
+            # DMs are restricted by allowed_senders. Group messages are gated by
+            # allow_groups plus the group trigger prefix so trusted collaborators
+            # in the group can invoke pi without being listed as DM senders. Set
+            # allowed_group_senders to restrict group participants explicitly.
+            if allowed_group_senders and msg.get("source") not in allowed_group_senders:
+                continue
+        elif allowed and msg.get("source") not in allowed:
             continue
-        if allowed and msg.get("source") not in allowed:
-            continue
-        route_prefix = group_trigger_prefix if msg.get("group_id") else dm_trigger_prefix
+        route_prefix = group_trigger_prefix if is_group else dm_trigger_prefix
         if route_prefix and not msg["text"].startswith(route_prefix):
             continue
         msg["matched_prefix"] = route_prefix
